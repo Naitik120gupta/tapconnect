@@ -1,18 +1,14 @@
 // src/lib/supabase.js
-// ─────────────────────────────────────────────
-// Replace these with your actual Supabase values from:
-// https://app.supabase.com → Your Project → Settings → API
-// ─────────────────────────────────────────────
 import { createClient } from '@supabase/supabase-js'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://YOUR_PROJECT.supabase.co'
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY'
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   realtime: { params: { eventsPerSecond: 10 } }
 })
 
-// ─── AUTH HELPERS ───────────────────────────
+// ─── AUTH ────────────────────────────────────────────────────
 export const signUp = (email, password) =>
   supabase.auth.signUp({ email, password })
 
@@ -23,13 +19,13 @@ export const signOut = () => supabase.auth.signOut()
 
 export const getUser = () => supabase.auth.getUser()
 
-// ─── PROFILE HELPERS ────────────────────────
+// ─── PROFILE ─────────────────────────────────────────────────
 export const getProfile = async (userId) => {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', userId)
-    .single()
+    .maybeSingle()           // ← won't throw if not found
   return { data, error }
 }
 
@@ -38,13 +34,12 @@ export const upsertProfile = async (profile) => {
     .from('profiles')
     .upsert(profile, { onConflict: 'id' })
     .select()
-    .single()
+    .maybeSingle()
   return { data, error }
 }
 
-// ─── TAP ROOM HELPERS ────────────────────────
+// ─── TAP ROOMS ───────────────────────────────────────────────
 export const createRoom = async (userId) => {
-  // Generate a unique 6-digit code
   const code = String(Math.floor(100000 + Math.random() * 900000))
   const { data, error } = await supabase
     .from('tap_rooms')
@@ -55,30 +50,31 @@ export const createRoom = async (userId) => {
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString()
     })
     .select()
-    .single()
+    .maybeSingle()
   return { data, error }
 }
 
 export const joinRoom = async (code, joinerId) => {
-  // Find the waiting room with this code
+  // Step 1: find the room — use maybeSingle to avoid JSON coerce error
   const { data: room, error: findError } = await supabase
     .from('tap_rooms')
     .select('*')
-    .eq('code', code)
+    .eq('code', code.trim())
     .eq('status', 'waiting')
     .gt('expires_at', new Date().toISOString())
-    .single()
+    .maybeSingle()           // ← THIS is the fix for your error
 
-  if (findError || !room) return { data: null, error: findError || new Error('Room not found or expired') }
-  if (room.creator_id === joinerId) return { data: null, error: new Error("You can't join your own room") }
+  if (findError) return { data: null, error: findError }
+  if (!room) return { data: null, error: new Error('Code not found or expired. Check the code and try again.') }
+  if (room.creator_id === joinerId) return { data: null, error: new Error("You can't join your own room — use a different account.") }
 
-  // Update room with joiner
+  // Step 2: claim the room
   const { data, error } = await supabase
     .from('tap_rooms')
     .update({ joiner_id: joinerId, status: 'matched' })
     .eq('id', room.id)
     .select()
-    .single()
+    .maybeSingle()
 
   return { data, error }
 }
@@ -95,18 +91,20 @@ export const subscribeToRoom = (roomId, callback) => {
     .subscribe()
 }
 
-// ─── CONNECTION HELPERS ──────────────────────
+// ─── CONNECTIONS ─────────────────────────────────────────────
 export const saveConnection = async ({ userA, userB, roomId, aiInsight }) => {
+  // Always store with smaller UUID first to avoid duplicates
+  const [a, b] = [userA, userB].sort()
   const { data, error } = await supabase
     .from('connections')
     .upsert({
-      user_a: userA,
-      user_b: userB,
+      user_a: a,
+      user_b: b,
       room_id: roomId,
       ai_insight: aiInsight
     }, { onConflict: 'user_a,user_b' })
     .select()
-    .single()
+    .maybeSingle()
   return { data, error }
 }
 
@@ -120,13 +118,12 @@ export const getConnections = async (userId) => {
     `)
     .or(`user_a.eq.${userId},user_b.eq.${userId}`)
     .order('created_at', { ascending: false })
-  return { data, error }
+  return { data: data || [], error }
 }
 
 export const updateConnectionNote = async (connectionId, userId, note) => {
-  // Determine if user is user_a or user_b
   const { data: conn } = await supabase
-    .from('connections').select('user_a, user_b').eq('id', connectionId).single()
+    .from('connections').select('user_a').eq('id', connectionId).maybeSingle()
   const field = conn?.user_a === userId ? 'note_a' : 'note_b'
   return supabase.from('connections').update({ [field]: note }).eq('id', connectionId)
 }

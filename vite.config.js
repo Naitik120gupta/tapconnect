@@ -7,26 +7,18 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/*.png', 'offline.html'],
-      // We manage our own manifest.json in /public
+      includeAssets: ['icons/*.png'],
       manifest: false,
       workbox: {
-        // Pre-cache all built assets
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-
-        // Offline fallback for navigation requests
         navigateFallback: null,
-        offlineFallback: '/offline.html',
-
         runtimeCaching: [
           {
-            // Google Fonts stylesheets — stale while revalidate
             urlPattern: /^https:\/\/fonts\.googleapis\.com/,
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'google-fonts-stylesheets' }
           },
           {
-            // Google Fonts files — cache forever
             urlPattern: /^https:\/\/fonts\.gstatic\.com/,
             handler: 'CacheFirst',
             options: {
@@ -38,7 +30,6 @@ export default defineConfig({
             }
           },
           {
-            // Supabase REST — network first, fall back to cache
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest/,
             handler: 'NetworkFirst',
             options: {
@@ -48,7 +39,6 @@ export default defineConfig({
             }
           },
           {
-            // Supabase Auth — always network (never serve stale tokens)
             urlPattern: /^https:\/\/.*\.supabase\.co\/auth/,
             handler: 'NetworkOnly'
           }
