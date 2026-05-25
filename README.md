@@ -47,6 +47,16 @@ The app detects what's available on the device and picks the best method automat
 - 🔒 **Row-level security** — Supabase RLS, users only see their own data
 
 ---
+## Architecture
+
+Frontend (React PWA)
+        ↓
+Supabase Realtime
+        ↓
+Tap Room Sync Engine
+        ↓
+Claude AI Insights
+
 
 ## Tech Stack
 
