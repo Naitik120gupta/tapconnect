@@ -196,6 +196,7 @@ All tables use Supabase Row Level Security — users can only read/write their o
 ---
 
 ## Contributing
+Contributions are welcome for non-core modules. Please open an issue before submitting a pull request. See CONTRIBUTING.md for guidelines.
 
 PRs welcome. For major changes, open an issue first.
 
