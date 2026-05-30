@@ -55,7 +55,7 @@ Supabase Realtime
         ↓
 Tap Room Sync Engine
         ↓
-Claude AI Insights
+Claude AI Insight
 
 
 ## Tech Stack
